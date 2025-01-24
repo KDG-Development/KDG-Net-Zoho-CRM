@@ -78,6 +78,14 @@ namespace KDG.Zoho.CRM.Services
       return response.data.ToList();
     }
 
+    public async Task<List<T>> GetEmailRecords<T>(string module)
+    {
+      var config = new ApiParams(){};
+      var response = await Send<EmailApiResponse<T>>(HttpMethod.Get, module, config);
+
+      return response.Emails.ToList();
+    }
+
     public async Task<CreateResponse<O>> CreateRecord<T,O>(string module, T data, List<Enums.Triggers> triggers)
     {
         var config = new ApiParams()
