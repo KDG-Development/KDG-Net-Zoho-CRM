@@ -78,6 +78,20 @@ namespace KDG.Zoho.CRM.Services
       return response.data.ToList();
     }
 
+    public async Task<T?> GetRecord<T>(string module, string id, IEnumerable<string> fields)
+    {
+      var config = new ApiParams()
+      {
+        urlParams = new Dictionary<string, string?>()
+        {
+          ["fields"] = String.Join(",", fields)
+        }
+      };
+      var response = await Send<ApiResponse<T>>(HttpMethod.Get, $"{module}/{id}", config);
+
+      return response.data.FirstOrDefault();
+    }
+
     public async Task<List<T>> GetEmailRecords<T>(string module)
     {
       var config = new ApiParams(){};
