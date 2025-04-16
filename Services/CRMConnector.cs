@@ -22,6 +22,7 @@ namespace KDG.Zoho.CRM.Services
     private long? _tokenExpiration;
     private IClock _clock;
     private string _tokenUri = "https://accounts.zoho.com/oauth/v2/token";
+    private string _userModule = "users";
 
     private AccessToken<KDG.Zoho.CRM.Models.ZohoAccessToken> AccessTokenGenerator()
     {
@@ -76,6 +77,59 @@ namespace KDG.Zoho.CRM.Services
       var response = await Send<ApiResponse<T>>(HttpMethod.Get, module, config);
 
       return response.data.ToList();
+    }
+
+    public async Task<T?> GetRecord<T>(string module, string id, IEnumerable<string> fields)
+    {
+      var config = new ApiParams()
+      {
+        urlParams = new Dictionary<string, string?>()
+        {
+          ["fields"] = String.Join(",", fields)
+        }
+      };
+      var response = await Send<ApiResponse<T>>(HttpMethod.Get, $"{module}/{id}", config);
+
+      return response.data.FirstOrDefault();
+    }
+
+    public async Task<T?> GetUserRecord<T>(string id, IEnumerable<string> fields)
+    {
+      var config = new ApiParams()
+      {
+        urlParams = new Dictionary<string, string?>()
+        {
+          ["ids"] = id,
+          ["fields"] = String.Join(",", fields)
+        }
+      };
+      var response = await Send<UsersApiResponse<T>>(HttpMethod.Get, $"{_userModule}", config);
+
+      return response.Users.FirstOrDefault();
+    }
+
+    public async Task<IEnumerable<T>> GetUserRecords<T>(IEnumerable<string> ids, IEnumerable<string> fields)
+    {
+      var config = new ApiParams()
+      {
+        urlParams = new Dictionary<string, string?>()
+        {
+          ["ids"] = String.Join(",", ids),
+          ["fields"] = String.Join(",", fields)
+        }
+      };
+
+      var response = await Send<UsersApiResponse<T>>(HttpMethod.Get, $"{_userModule}", config);
+
+      return response.Users;
+    }
+
+    public async Task<List<T>> GetEmailRecords<T>(string module)
+    {
+      var config = new ApiParams(){};
+      var response = await Send<EmailApiResponse<T>>(HttpMethod.Get, module, config);
+
+      return response.Emails.ToList();
     }
 
     public async Task<CreateResponse<O>> CreateRecord<T,O>(string module, T data, List<Enums.Triggers> triggers)

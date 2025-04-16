@@ -5,4 +5,17 @@ namespace KDG.Zoho.CRM.Models
         public IEnumerable<T> data { get; set; }
         public ApiResponseInfo info { get; set; }
     }
+
+    public struct EmailApiResponse<T>
+    {
+        public IEnumerable<T> Emails { get; set; }
+        public ApiResponseInfo info { get; set; }
+    }
+
+    public struct UsersApiResponse<T>
+    {
+        public IEnumerable<T> Users { get; set; }
+        public ApiResponseInfo info { get; set; }
+
+    }
 }
