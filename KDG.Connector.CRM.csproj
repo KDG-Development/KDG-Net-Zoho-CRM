@@ -2,7 +2,7 @@
 
   <PropertyGroup>
      <PackageId>KDG-Net-Zoho-CRM</PackageId>
-     <Version>0.0.2</Version>
+     <Version>0.0.3</Version>
      <Authors>Kyle David Group</Authors>
      <Company>Kyle David Group</Company>
      <Description>A wrapper for common Zoho CRM functionalities</Description>
