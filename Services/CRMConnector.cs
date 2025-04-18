@@ -110,13 +110,18 @@ namespace KDG.Zoho.CRM.Services
 
     public async Task<IEnumerable<T>> GetUserRecords<T>(IEnumerable<string> ids, IEnumerable<string> fields)
     {
+      Dictionary<string, string?> userParams = new Dictionary<string, string?>(){};
+      if(ids.Count() > 0)
+      {
+        userParams.Add("ids", String.Join(",",ids));
+      }
+      if(fields.Count() > 0)
+      {
+        userParams.Add("fields", String.Join(",",fields));
+      }
       var config = new ApiParams()
       {
-        urlParams = new Dictionary<string, string?>()
-        {
-          ["ids"] = String.Join(",", ids),
-          ["fields"] = String.Join(",", fields)
-        }
+        urlParams = userParams
       };
 
       var response = await Send<UsersApiResponse<T>>(HttpMethod.Get, $"{_userModule}", config);
