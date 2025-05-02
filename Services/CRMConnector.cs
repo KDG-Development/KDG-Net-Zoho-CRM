@@ -2,7 +2,6 @@ using Newtonsoft.Json;
 using KDG.Zoho.CRM.Models;
 using Microsoft.Extensions.Logging;
 using NodaTime;
-using KDG.Zoho.CRM.Search.Criteria;
 
 namespace KDG.Zoho.CRM.Services
 {
@@ -65,6 +64,37 @@ namespace KDG.Zoho.CRM.Services
       return new System.Net.Http.Headers.AuthenticationHeaderValue("Zoho-oauthtoken", token);
     }
 
+    // Max number of results per call is 200. Keeps getting more until we have all records.
+    async Task<IEnumerable<T>> GetAll<T, TResponse>(string path, ApiParams config)
+      where TResponse : IApiResponse<T>
+    {
+      var hasMore = true;
+      var results = new List<T>();
+      const int PER_PAGE = 200;
+      var page = 0;
+      if (config.urlParams == null){
+        config.urlParams = [];
+      }
+      while (hasMore){
+        if (!config.urlParams.ContainsKey("per_page")){
+          config.urlParams.Add("per_page", PER_PAGE.ToString());
+        }
+        page++;
+        if (!config.urlParams.ContainsKey("page")){
+          config.urlParams.Add("page", page.ToString());
+        } else {
+          config.urlParams["page"] = page.ToString();
+        }
+        
+        var response = await Send<TResponse>(HttpMethod.Get, path, config);
+        if (response.data?.Any() ?? false){
+          results.AddRange(response.data);
+        }
+        hasMore = response.info.more_records;
+      }
+      return results;
+    }
+
     public async Task<List<T>> GetRecords<T>(string module, IEnumerable<string> fields)
     {
       var config = new ApiParams()
@@ -74,9 +104,8 @@ namespace KDG.Zoho.CRM.Services
           ["fields"] = String.Join(",", fields)
         }
       };
-      var response = await Send<ApiResponse<T>>(HttpMethod.Get, module, config);
 
-      return response.data.ToList();
+      return (await GetAll<T, ApiResponse<T>>(module, config)).ToList();
     }
 
     public async Task<T?> GetRecord<T>(string module, string id, IEnumerable<string> fields)
@@ -91,6 +120,18 @@ namespace KDG.Zoho.CRM.Services
       var response = await Send<ApiResponse<T>>(HttpMethod.Get, $"{module}/{id}", config);
 
       return response.data.FirstOrDefault();
+    }
+
+    public async Task<IEnumerable<T>> GetRelatedRecords<T>(string module, string id, string relatedListApiName, IEnumerable<string> fields)
+    {
+      var config = new ApiParams()
+      {
+        urlParams = new Dictionary<string, string?>()
+        {
+          ["fields"] = String.Join(",", fields)
+        }
+      };
+      return await GetAll<T, ApiResponse<T>>($"{module}/{id}/{relatedListApiName}", config);
     }
 
     public async Task<T?> GetUserRecord<T>(string id, IEnumerable<string> fields)
@@ -124,17 +165,13 @@ namespace KDG.Zoho.CRM.Services
         urlParams = userParams
       };
 
-      var response = await Send<UsersApiResponse<T>>(HttpMethod.Get, $"{_userModule}", config);
-
-      return response.Users;
+      return await GetAll<T, UsersApiResponse<T>>($"{_userModule}", config);
     }
 
     public async Task<List<T>> GetEmailRecords<T>(string module)
     {
       var config = new ApiParams(){};
-      var response = await Send<EmailApiResponse<T>>(HttpMethod.Get, module, config);
-
-      return response.Emails.ToList();
+      return (await GetAll<T, EmailApiResponse<T>>(module, config)).ToList();
     }
 
     public async Task<CreateResponse<O>> CreateRecord<T,O>(string module, T data, List<Enums.Triggers> triggers)
