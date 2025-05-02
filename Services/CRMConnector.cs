@@ -87,7 +87,7 @@ namespace KDG.Zoho.CRM.Services
         }
         
         var response = await Send<TResponse>(HttpMethod.Get, path, config);
-        if (response.data.Any()){
+        if (response.data?.Any() ?? false){
           results.AddRange(response.data);
         }
         hasMore = response.info.more_records;
