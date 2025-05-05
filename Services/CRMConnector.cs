@@ -50,10 +50,11 @@ namespace KDG.Zoho.CRM.Services
       {
         var gen = AccessTokenGenerator();
         var token = await gen.getAccessToken();
-        _tokenExpiration = now + (token.ExpiresIn / 2);
-        _currentToken = token;
+        if (!string.IsNullOrEmpty(token?.AccessToken)){
+          _tokenExpiration = now + (token.ExpiresIn / 2);
+          _currentToken = token;
+        }
       }
-
       return _currentToken.AccessToken;
     }
 
@@ -192,6 +193,15 @@ namespace KDG.Zoho.CRM.Services
         };
         var response = await Send<Response<CreateResponse<O>>>(HttpMethod.Put, module, config);
         return response.Data.First();
+    }
+    public async Task<IEnumerable<CreateResponse<O>>> UpsertRecords<T,O>(string module, IEnumerable<T> data, IEnumerable<string> duplicateCheckFields, List<Enums.Triggers> triggers)
+    {
+        var config = new ApiParams()
+        {
+            postParams = new UpsertRequest<T>(data, duplicateCheckFields, triggers)
+        };
+        var response = await Send<Response<CreateResponse<O>>>(HttpMethod.Put, module+"/upsert", config);
+        return response.Data;
     }
     public Task<ApiResponse<T>> Search<T>(SearchParams search)
     {
