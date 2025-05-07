@@ -55,7 +55,7 @@ namespace KDG.Zoho.CRM.Services
           _currentToken = token;
         }
       }
-      return _currentToken.AccessToken;
+      return _currentToken?.AccessToken ?? string.Empty;
     }
 
     protected override async Task<System.Net.Http.Headers.AuthenticationHeaderValue> GetAuthenticationHeaderValue()
@@ -200,7 +200,7 @@ namespace KDG.Zoho.CRM.Services
         {
             postParams = new UpsertRequest<T>(data, duplicateCheckFields, triggers)
         };
-        var response = await Send<Response<CreateResponse<O>>>(HttpMethod.Put, module+"/upsert", config);
+        var response = await Send<Response<CreateResponse<O>>>(HttpMethod.Post, module+"/upsert", config);
         return response.Data;
     }
     public Task<ApiResponse<T>> Search<T>(SearchParams search)
