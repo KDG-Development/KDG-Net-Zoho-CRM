@@ -214,5 +214,19 @@ namespace KDG.Zoho.CRM.Services
         };
         return Send<ApiResponse<T>>(HttpMethod.Get, $"{search.Module}/search", config);
     }
+    public async Task<List<CreateResponse<DeletedRecord>>> DeleteRecords(string module, IEnumerable<string> ids){
+      if (ids.Count() > 100){
+        throw new InvalidOperationException("API can only delete up to 100 records in a single call.");
+      }
+      var config = new ApiParams()
+      {
+        urlParams = new Dictionary<string, string?>()
+        {
+          ["ids"] = string.Join(',', ids),
+        }
+      };
+      var response = await Send<Response<CreateResponse<DeletedRecord>>>(HttpMethod.Delete, module, config);
+      return response.Data;
+    }
   }
 }
