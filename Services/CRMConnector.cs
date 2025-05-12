@@ -2,6 +2,7 @@ using Newtonsoft.Json;
 using KDG.Zoho.CRM.Models;
 using Microsoft.Extensions.Logging;
 using NodaTime;
+using System.Formats.Tar;
 
 namespace KDG.Zoho.CRM.Services
 {
@@ -96,6 +97,66 @@ namespace KDG.Zoho.CRM.Services
       return results;
     }
 
+    async Task<RecordCount> GetRecordCount(string module)
+    {
+      var config = new ApiParams()
+      {
+        urlParams = new Dictionary<string, string?>()
+      };
+      var response = await Send<RecordCount>(HttpMethod.Post, $"{module}/actions/count", config);
+      return response;
+    }
+    
+    async Task<RelatedRecordCountResponse> GetRelatedRecordCount(string module, string id, string relatedListApiName)
+    {
+      var config = new ApiParams()
+      {
+        urlParams = new Dictionary<string, string?>(),
+        postParams = new Dictionary<string, object?>()
+        {
+          ["get_related_records_count"] = new List<Dictionary<string, object?>>()
+          {
+            new Dictionary<string, object?>()
+            {
+              ["related_list"] = new Dictionary<string, object?>()
+              {
+                ["api_name"] = relatedListApiName
+              }
+            }
+          }
+        }
+      };
+      var response = await Send<RelatedRecordCountResponse>(HttpMethod.Post, $"{module}/{id}/actions/get_related_records_count", config);
+      return response;
+    }
+    async Task<PaginatedResponse<T>> GetPaginated<T, TResponse>(string path, ApiParams config, int page, int perPage)
+      where TResponse : IApiResponse<T>
+    {
+      var results = new List<T>();
+      if (config.urlParams == null){
+        config.urlParams = [];
+      }
+      if (!config.urlParams.ContainsKey("per_page")){
+        config.urlParams.Add("per_page", perPage.ToString());
+      }
+        
+      if (!config.urlParams.ContainsKey("page")){
+        config.urlParams.Add("page", page.ToString());
+      } else {
+        config.urlParams["page"] = page.ToString();
+      }
+        
+      var response = await Send<TResponse>(HttpMethod.Get, path, config);
+      if (response.data?.Any() ?? false){
+        results.AddRange(response.data);
+      }
+      
+      return new PaginatedResponse<T> {
+        Results = results,
+        Pagination = response.info
+      };
+    }
+
     public async Task<List<T>> GetRecords<T>(string module, IEnumerable<string> fields)
     {
       var config = new ApiParams()
@@ -107,6 +168,43 @@ namespace KDG.Zoho.CRM.Services
       };
 
       return (await GetAll<T, ApiResponse<T>>(module, config)).ToList();
+    }
+
+    public async Task<PaginatedApiResponse<T>> GetRecordsPaginated<T>(string module, IEnumerable<string> fields, int page, int perPage)
+    {
+      var config = new ApiParams()
+      {
+        urlParams = new Dictionary<string, string?>()
+        {
+          ["fields"] = String.Join(",", fields)
+        }
+      };
+
+      var results = await GetPaginated<T, ApiResponse<T>>(module, config, page, perPage);
+      var count = await GetRecordCount(module);
+      return new PaginatedApiResponse<T>
+      {
+        Results = results.Results,
+        TotalCount = count.Count
+      };
+    }
+
+    public async Task<PaginatedApiResponse<T>> GetRelatedRecordsPaginated<T>(string module, string id, string relatedListApiName, IEnumerable<string> fields, int page, int perPage)
+    {
+      var config = new ApiParams()
+      {
+        urlParams = new Dictionary<string, string?>()
+        {
+          ["fields"] = String.Join(",", fields)
+        }
+      };
+      var results = await GetPaginated<T, ApiResponse<T>>($"{module}/{id}/{relatedListApiName}", config, page, perPage);
+      var count = await GetRelatedRecordCount(module, id, relatedListApiName);
+      return new PaginatedApiResponse<T>
+      {
+        Results = results.Results,
+        TotalCount = count.GetRelatedRecordsCount.First().Count
+      };
     }
 
     public async Task<T?> GetRecord<T>(string module, string id, IEnumerable<string> fields)
