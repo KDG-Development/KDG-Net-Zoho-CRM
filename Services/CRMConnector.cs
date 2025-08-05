@@ -24,6 +24,30 @@ namespace KDG.Zoho.CRM.Services
     private string _tokenUri = "https://accounts.zoho.com/oauth/v2/token";
     private string _userModule = "users";
 
+    /// <summary>
+    /// Formats a DateTime for use in If-Modified-Since header according to HTTP RFC 7232 requirements
+    /// </summary>
+    /// <param name="dateTime">The date and time to format</param>
+    /// <returns>RFC 1123 formatted date string</returns>
+    private string FormatModifiedSinceDate(DateTime dateTime)
+    {
+      // Convert to UTC if not already, then format as RFC 1123
+      var utcDateTime = dateTime.Kind == DateTimeKind.Utc ? dateTime : dateTime.ToUniversalTime();
+      return utcDateTime.ToString("R"); // RFC 1123 format
+    }
+
+    /// <summary>
+    /// Creates headers dictionary with X-Modified-Since header if date is provided
+    /// </summary>
+    /// <param name="modifiedSince">Optional date for X-Modified-Since header</param>
+    /// <returns>Headers dictionary or null if no date provided</returns>
+    private Dictionary<string, string>? CreateModifiedSinceHeaders(DateTime? modifiedSince)
+    {
+      return modifiedSince.HasValue ?
+        new Dictionary<string, string> { ["If-Modified-Since"] = FormatModifiedSinceDate(modifiedSince.Value) } :
+        null;
+    }
+
     private AccessToken<KDG.Zoho.CRM.Models.ZohoAccessToken> AccessTokenGenerator()
     {
       var config = _config;
@@ -87,7 +111,7 @@ namespace KDG.Zoho.CRM.Services
         } else {
           config.urlParams["page"] = page.ToString();
         }
-        
+
         var response = await Send<TResponse>(HttpMethod.Get, path, config);
         if (response.data?.Any() ?? false){
           results.AddRange(response.data);
@@ -106,7 +130,7 @@ namespace KDG.Zoho.CRM.Services
       var response = await Send<RecordCount>(HttpMethod.Post, $"{module}/actions/count", config);
       return response;
     }
-    
+
     async Task<RelatedRecordCountResponse> GetRelatedRecordCount(string module, string id, string relatedListApiName)
     {
       var config = new ApiParams()
@@ -139,45 +163,91 @@ namespace KDG.Zoho.CRM.Services
       if (!config.urlParams.ContainsKey("per_page")){
         config.urlParams.Add("per_page", perPage.ToString());
       }
-        
+
       if (!config.urlParams.ContainsKey("page")){
         config.urlParams.Add("page", page.ToString());
       } else {
         config.urlParams["page"] = page.ToString();
       }
-        
+
       var response = await Send<TResponse>(HttpMethod.Get, path, config);
       if (response.data?.Any() ?? false){
         results.AddRange(response.data);
       }
-      
+
       return new PaginatedResponse<T> {
         Results = results,
         Pagination = response.info
       };
     }
 
+    /// <summary>
+    /// Gets all records from a module with specified fields
+    /// </summary>
+    /// <typeparam name="T">Type to deserialize records to</typeparam>
+    /// <param name="module">Module name (e.g., "Contacts", "Leads")</param>
+    /// <param name="fields">Fields to retrieve</param>
+    /// <returns>List of records</returns>
     public async Task<List<T>> GetRecords<T>(string module, IEnumerable<string> fields)
+    {
+      return await GetRecords<T>(module, fields, null);
+    }
+
+    /// <summary>
+    /// Gets all records from a module with specified fields, optionally filtering by modification date
+    /// </summary>
+    /// <typeparam name="T">Type to deserialize records to</typeparam>
+    /// <param name="module">Module name (e.g., "Contacts", "Leads")</param>
+    /// <param name="fields">Fields to retrieve</param>
+    /// <param name="modifiedSince">Optional date to filter records modified since this date</param>
+    /// <returns>List of records</returns>
+    public async Task<List<T>> GetRecords<T>(string module, IEnumerable<string> fields, DateTime? modifiedSince)
     {
       var config = new ApiParams()
       {
         urlParams = new Dictionary<string, string?>()
         {
           ["fields"] = String.Join(",", fields)
-        }
+        },
+        headers = CreateModifiedSinceHeaders(modifiedSince)
       };
 
       return (await GetAll<T, ApiResponse<T>>(module, config)).ToList();
     }
 
+    /// <summary>
+    /// Gets paginated records from a module with specified fields
+    /// </summary>
+    /// <typeparam name="T">Type to deserialize records to</typeparam>
+    /// <param name="module">Module name (e.g., "Contacts", "Leads")</param>
+    /// <param name="fields">Fields to retrieve</param>
+    /// <param name="page">Page number (1-based)</param>
+    /// <param name="perPage">Number of records per page</param>
+    /// <returns>Paginated response with records and total count</returns>
     public async Task<PaginatedApiResponse<T>> GetRecordsPaginated<T>(string module, IEnumerable<string> fields, int page, int perPage)
+    {
+      return await GetRecordsPaginated<T>(module, fields, page, perPage, null);
+    }
+
+    /// <summary>
+    /// Gets paginated records from a module with specified fields, optionally filtering by modification date
+    /// </summary>
+    /// <typeparam name="T">Type to deserialize records to</typeparam>
+    /// <param name="module">Module name (e.g., "Contacts", "Leads")</param>
+    /// <param name="fields">Fields to retrieve</param>
+    /// <param name="page">Page number (1-based)</param>
+    /// <param name="perPage">Number of records per page</param>
+    /// <param name="modifiedSince">Optional date to filter records modified since this date</param>
+    /// <returns>Paginated response with records and total count</returns>
+    public async Task<PaginatedApiResponse<T>> GetRecordsPaginated<T>(string module, IEnumerable<string> fields, int page, int perPage, DateTime? modifiedSince)
     {
       var config = new ApiParams()
       {
         urlParams = new Dictionary<string, string?>()
         {
           ["fields"] = String.Join(",", fields)
-        }
+        },
+        headers = CreateModifiedSinceHeaders(modifiedSince)
       };
 
       var results = await GetPaginated<T, ApiResponse<T>>(module, config, page, perPage);
@@ -189,14 +259,43 @@ namespace KDG.Zoho.CRM.Services
       };
     }
 
+    /// <summary>
+    /// Gets paginated related records with specified fields
+    /// </summary>
+    /// <typeparam name="T">Type to deserialize records to</typeparam>
+    /// <param name="module">Parent module name</param>
+    /// <param name="id">Parent record ID</param>
+    /// <param name="relatedListApiName">Related list API name</param>
+    /// <param name="fields">Fields to retrieve</param>
+    /// <param name="page">Page number (1-based)</param>
+    /// <param name="perPage">Number of records per page</param>
+    /// <returns>Paginated response with related records and total count</returns>
     public async Task<PaginatedApiResponse<T>> GetRelatedRecordsPaginated<T>(string module, string id, string relatedListApiName, IEnumerable<string> fields, int page, int perPage)
+    {
+      return await GetRelatedRecordsPaginated<T>(module, id, relatedListApiName, fields, page, perPage, null);
+    }
+
+    /// <summary>
+    /// Gets paginated related records with specified fields, optionally filtering by modification date
+    /// </summary>
+    /// <typeparam name="T">Type to deserialize records to</typeparam>
+    /// <param name="module">Parent module name</param>
+    /// <param name="id">Parent record ID</param>
+    /// <param name="relatedListApiName">Related list API name</param>
+    /// <param name="fields">Fields to retrieve</param>
+    /// <param name="page">Page number (1-based)</param>
+    /// <param name="perPage">Number of records per page</param>
+    /// <param name="modifiedSince">Optional date to filter records modified since this date</param>
+    /// <returns>Paginated response with related records and total count</returns>
+    public async Task<PaginatedApiResponse<T>> GetRelatedRecordsPaginated<T>(string module, string id, string relatedListApiName, IEnumerable<string> fields, int page, int perPage, DateTime? modifiedSince)
     {
       var config = new ApiParams()
       {
         urlParams = new Dictionary<string, string?>()
         {
           ["fields"] = String.Join(",", fields)
-        }
+        },
+        headers = CreateModifiedSinceHeaders(modifiedSince)
       };
       var results = await GetPaginated<T, ApiResponse<T>>($"{module}/{id}/{relatedListApiName}", config, page, perPage);
       var count = await GetRelatedRecordCount(module, id, relatedListApiName);
@@ -207,28 +306,76 @@ namespace KDG.Zoho.CRM.Services
       };
     }
 
+    /// <summary>
+    /// Gets a single record by ID with specified fields
+    /// </summary>
+    /// <typeparam name="T">Type to deserialize record to</typeparam>
+    /// <param name="module">Module name (e.g., "Contacts", "Leads")</param>
+    /// <param name="id">Record ID</param>
+    /// <param name="fields">Fields to retrieve</param>
+    /// <returns>Record or null if not found</returns>
     public async Task<T?> GetRecord<T>(string module, string id, IEnumerable<string> fields)
+    {
+      return await GetRecord<T>(module, id, fields, null);
+    }
+
+    /// <summary>
+    /// Gets a single record by ID with specified fields, optionally filtering by modification date
+    /// </summary>
+    /// <typeparam name="T">Type to deserialize record to</typeparam>
+    /// <param name="module">Module name (e.g., "Contacts", "Leads")</param>
+    /// <param name="id">Record ID</param>
+    /// <param name="fields">Fields to retrieve</param>
+    /// <param name="modifiedSince">Optional date to filter record modified since this date</param>
+    /// <returns>Record or null if not found or not modified since specified date</returns>
+    public async Task<T?> GetRecord<T>(string module, string id, IEnumerable<string> fields, DateTime? modifiedSince)
     {
       var config = new ApiParams()
       {
         urlParams = new Dictionary<string, string?>()
         {
           ["fields"] = String.Join(",", fields)
-        }
+        },
+        headers = CreateModifiedSinceHeaders(modifiedSince)
       };
       var response = await Send<ApiResponse<T>>(HttpMethod.Get, $"{module}/{id}", config);
 
       return response.data.FirstOrDefault();
     }
 
+    /// <summary>
+    /// Gets all related records with specified fields
+    /// </summary>
+    /// <typeparam name="T">Type to deserialize records to</typeparam>
+    /// <param name="module">Parent module name</param>
+    /// <param name="id">Parent record ID</param>
+    /// <param name="relatedListApiName">Related list API name</param>
+    /// <param name="fields">Fields to retrieve</param>
+    /// <returns>List of related records</returns>
     public async Task<IEnumerable<T>> GetRelatedRecords<T>(string module, string id, string relatedListApiName, IEnumerable<string> fields)
+    {
+      return await GetRelatedRecords<T>(module, id, relatedListApiName, fields, null);
+    }
+
+    /// <summary>
+    /// Gets all related records with specified fields, optionally filtering by modification date
+    /// </summary>
+    /// <typeparam name="T">Type to deserialize records to</typeparam>
+    /// <param name="module">Parent module name</param>
+    /// <param name="id">Parent record ID</param>
+    /// <param name="relatedListApiName">Related list API name</param>
+    /// <param name="fields">Fields to retrieve</param>
+    /// <param name="modifiedSince">Optional date to filter records modified since this date</param>
+    /// <returns>List of related records</returns>
+    public async Task<IEnumerable<T>> GetRelatedRecords<T>(string module, string id, string relatedListApiName, IEnumerable<string> fields, DateTime? modifiedSince)
     {
       var config = new ApiParams()
       {
         urlParams = new Dictionary<string, string?>()
         {
           ["fields"] = String.Join(",", fields)
-        }
+        },
+        headers = CreateModifiedSinceHeaders(modifiedSince)
       };
       return await GetAll<T, ApiResponse<T>>($"{module}/{id}/{relatedListApiName}", config);
     }
@@ -301,6 +448,12 @@ namespace KDG.Zoho.CRM.Services
         var response = await Send<Response<CreateResponse<O>>>(HttpMethod.Post, module+"/upsert", config);
         return response.Data;
     }
+    /// <summary>
+    /// Searches for records using criteria and optionally filters by modification date
+    /// </summary>
+    /// <typeparam name="T">Type to deserialize records to</typeparam>
+    /// <param name="search">Search parameters including module, criteria, and optional modified since date</param>
+    /// <returns>API response with matching records</returns>
     public Task<ApiResponse<T>> Search<T>(SearchParams search)
     {
         var config = new ApiParams()
@@ -308,7 +461,8 @@ namespace KDG.Zoho.CRM.Services
             urlParams = new Dictionary<string, string?>()
             {
                 ["criteria"] = String.Join("and",search.Criterias.Select((v) => v.GetCriteriaValue())),
-            }
+            },
+            headers = CreateModifiedSinceHeaders(search.ModifiedSince)
         };
         return Send<ApiResponse<T>>(HttpMethod.Get, $"{search.Module}/search", config);
     }

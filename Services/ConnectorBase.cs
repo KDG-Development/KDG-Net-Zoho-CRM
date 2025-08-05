@@ -218,6 +218,11 @@ namespace KDG.Zoho.CRM.Services
           var response = await client.SendAsync(request);
           contents = await response.Content.ReadAsStringAsync();
           statusCode = response.StatusCode;
+          if (response.StatusCode == HttpStatusCode.NotModified)
+          {
+            successful = true;
+            return default(RESPONSE)!;
+          }
 
           if (TryGetResponse<RESPONSE>(response, contents, logResponseData, out responseData))
           {
@@ -307,6 +312,12 @@ namespace KDG.Zoho.CRM.Services
       var request = new HttpRequestMessage(method, uri);
       var headers = GetHeaders(config);
       request.Headers.Authorization = await GetAuthenticationHeaderValue();
+
+      // Apply custom headers
+      foreach (var header in headers)
+      {
+        request.Headers.Add(header.Key, header.Value);
+      }
 
       if ((method == HttpMethod.Post || method == HttpMethod.Patch || method == HttpMethod.Put) &&
           config.postParams != null)
