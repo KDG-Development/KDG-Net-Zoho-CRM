@@ -91,32 +91,45 @@ namespace KDG.Zoho.CRM.Services
     }
 
     // Max number of results per call is 200. Keeps getting more until we have all records.
+    // Uses page_token for pagination to support up to 100k records.
     async Task<IEnumerable<T>> GetAll<T, TResponse>(string path, ApiParams config)
       where TResponse : IApiResponse<T>
     {
       var hasMore = true;
       var results = new List<T>();
       const int PER_PAGE = 200;
-      var page = 0;
+      string? pageToken = null;
+
       if (config.urlParams == null){
         config.urlParams = [];
       }
+
+      // Set per_page parameter
+      if (!config.urlParams.ContainsKey("per_page")){
+        config.urlParams.Add("per_page", PER_PAGE.ToString());
+      }
+
       while (hasMore){
-        if (!config.urlParams.ContainsKey("per_page")){
-          config.urlParams.Add("per_page", PER_PAGE.ToString());
-        }
-        page++;
-        if (!config.urlParams.ContainsKey("page")){
-          config.urlParams.Add("page", page.ToString());
+        // Use page_token for pagination instead of page number
+        if (pageToken != null){
+          if (!config.urlParams.ContainsKey("page_token")){
+            config.urlParams.Add("page_token", pageToken);
+          } else {
+            config.urlParams["page_token"] = pageToken;
+          }
         } else {
-          config.urlParams["page"] = page.ToString();
+          // Remove page_token if it exists for first request
+          config.urlParams.Remove("page_token");
         }
 
         var response = await Send<TResponse>(HttpMethod.Get, path, config);
         if (response.data?.Any() ?? false){
           results.AddRange(response.data);
         }
+
+        // Check if there are more records and get next page token
         hasMore = response.info.more_records;
+        pageToken = response.info.next_page_token;
       }
       return results;
     }
