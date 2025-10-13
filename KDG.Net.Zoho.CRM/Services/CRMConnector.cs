@@ -3,6 +3,7 @@ using KDG.Zoho.CRM.Models;
 using Microsoft.Extensions.Logging;
 using NodaTime;
 using System.Formats.Tar;
+using System.Net;
 
 namespace KDG.Zoho.CRM.Services
 {
@@ -143,6 +144,49 @@ namespace KDG.Zoho.CRM.Services
       var response = await Send<RecordCount>(HttpMethod.Post, $"{module}/actions/count", config);
       return response;
     }
+
+    /// <summary>
+    /// Gets the module image for a specific record
+    /// </summary>
+    /// <param name="module">Module name (e.g., "Contacts", "Leads")</param>
+    /// <param name="id">Record ID</param>
+    /// <returns>Base64 encoded PNG image string, or null if no image exists</returns>
+    public async Task<string?> GetModuleImage(string module, string id)
+    {
+      using (var client = new HttpClient())
+      {
+        client.Timeout = TimeSpan.FromMinutes(TimeOutInMinutes);
+        var url = GetUrl($"{module}/{id}/photo", null);
+        var uri = new Uri(url);
+
+        var request = new HttpRequestMessage(HttpMethod.Get, uri);
+        request.Headers.Authorization = await GetAuthenticationHeaderValue();
+
+        var response = await client.SendAsync(request);
+        
+        if (response.StatusCode == HttpStatusCode.NoContent)
+        {
+          return null;
+        }
+
+        if (response.IsSuccessStatusCode)
+        {
+          var bytes = await response.Content.ReadAsByteArrayAsync();
+          if (bytes.Length == 0)
+          {
+            return null;
+          }
+
+          // Convert to base64
+          var base64String = Convert.ToBase64String(bytes);
+          return base64String;
+        }
+
+        return null;
+      }
+    }
+
+    
 
     async Task<RelatedRecordCountResponse> GetRelatedRecordCount(string module, string id, string relatedListApiName)
     {
