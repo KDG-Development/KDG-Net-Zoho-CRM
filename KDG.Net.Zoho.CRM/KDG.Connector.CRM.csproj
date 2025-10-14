@@ -1,0 +1,37 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+     <PackageId>KDG-Net-Zoho-CRM</PackageId>
+     <Version>0.1.2</Version>
+     <Authors>Kyle David Group</Authors>
+     <Company>Kyle David Group</Company>
+     <Description>A .NET library for integrating with Zoho CRM API, providing easy access to CRM data with support for incremental synchronization using the X-Modified-Since header.</Description>
+     <PackageLicenseFile>LICENSE</PackageLicenseFile>
+     <PackageReadmeFile>README.md</PackageReadmeFile>
+     <PackageTags>zoho;crm;api;connector;incremental;sync;x-modified-since</PackageTags>
+     <PackageProjectUrl>https://github.com/KDG-Development/KDG-Net-Zoho-CRM</PackageProjectUrl>
+     <RepositoryUrl>https://github.com/KDG-Development/KDG-Net-Zoho-CRM</RepositoryUrl>
+     <RepositoryType>git</RepositoryType>
+     <PackageReleaseNotes>Added X-Modified-Since header support for efficient incremental synchronization. Fixed critical bug in custom header application. All retrieval methods now support optional DateTime filtering for modified records.</PackageReleaseNotes>
+     <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
+     <GenerateDocumentationFile>true</GenerateDocumentationFile>
+   </PropertyGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="LICENSE" Pack="true" PackagePath=""/>
+    <None Include="README.md" Pack="true" PackagePath=""/>
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="KDG-Net-Common" Version="0.0.1" />
+    <PackageReference Include="KDG-Net-Connector" Version="0.0.1" />
+    <PackageReference Include="NodaTime" Version="3.1.9" />
+  </ItemGroup>
+
+</Project>

@@ -6,3 +6,4 @@ bin
 obj
 appsettings.development.json
 appsettings.production.json
+*.nupkg
