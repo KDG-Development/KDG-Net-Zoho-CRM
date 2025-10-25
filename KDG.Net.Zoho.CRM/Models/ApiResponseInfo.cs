@@ -11,5 +11,6 @@ namespace KDG.Zoho.CRM.Models
         public string? page_token_expiry { get; set; }
         public string sort_order { get; set; }
         public bool more_records { get; set; }
+        public string? next_index { get; set; }
     }
 }
