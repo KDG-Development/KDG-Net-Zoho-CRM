@@ -122,6 +122,43 @@ namespace KDG.Zoho.CRM.Services
       return results;
     }
 
+    // For some reason, the emails endpoints only returns 10 records at a time.
+    // It also uses different pagination parameters because sure, why not?
+    async Task<IEnumerable<T>> GetAllEmails<T, TResponse>(string path, ApiParams config)
+      where TResponse : IApiResponse<T>
+    {
+      var hasMore = true;
+      var results = new List<T>();
+      string? pageIndex = null;
+
+      if (config.urlParams == null){
+        config.urlParams = [];
+      }
+
+      while (hasMore){
+        // Use index for pagination of emails instead of page_token
+        if (!string.IsNullOrEmpty(pageIndex)){
+          if (!config.urlParams.ContainsKey("index")){
+            config.urlParams.Add("index", pageIndex);
+          } else {
+            config.urlParams["index"] = pageIndex;
+          }
+        }
+
+        var response = await Send<TResponse>(HttpMethod.Get, path, config);
+        if (response.data?.Any() ?? false){
+          results.AddRange(response.data);
+        }
+
+        // Check if there are more records and get next page token
+        // There was an issue where more_records was true, but next_page_token was null, causing an endless loop.
+        // Make sure there's a next page token to fetch more records.
+        hasMore = response.info.more_records && !string.IsNullOrEmpty(response.info.next_index);
+        pageIndex = response.info.next_index;
+      }
+      return results;
+    }
+
     async Task<RecordCount> GetRecordCount(string module)
     {
       var config = new ApiParams()
@@ -461,7 +498,7 @@ namespace KDG.Zoho.CRM.Services
     public async Task<List<T>> GetEmailRecords<T>(string module)
     {
       var config = new ApiParams(){};
-      return (await GetAll<T, EmailApiResponse<T>>(module, config)).ToList();
+      return (await GetAllEmails<T, EmailApiResponse<T>>(module, config)).ToList();
     }
 
     public async Task<CreateResponse<O>> CreateRecord<T,O>(string module, T data, List<Enums.Triggers> triggers)
