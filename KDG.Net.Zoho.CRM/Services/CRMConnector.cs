@@ -19,8 +19,6 @@ namespace KDG.Zoho.CRM.Services
       _clock = clock;
     }
 
-    private KDG.Zoho.CRM.Models.ZohoAccessToken? _currentToken;
-    private long? _tokenExpiration;
     private IClock _clock;
     private string _tokenUri = "https://accounts.zoho.com/oauth/v2/token";
     private string _userModule = "users";
@@ -49,39 +47,26 @@ namespace KDG.Zoho.CRM.Services
         null;
     }
 
-    private AccessToken<KDG.Zoho.CRM.Models.ZohoAccessToken> AccessTokenGenerator()
+    protected async Task<string> GetAccessToken()
     {
-      var config = _config;
-      var token = new AccessToken<KDG.Zoho.CRM.Models.ZohoAccessToken>(
+      var tokenInstance = AccessToken<KDG.Zoho.CRM.Models.ZohoAccessToken>.Instance(
         new Uri(_tokenUri),
-        new Dictionary<string, string?>()
+        new Dictionary<string, string?>() 
         {
-          [LabelHelpers.RefreshTokenLabel] = config.RefreshToken,
-          [LabelHelpers.ClientId] = config.ClientId,
-          [LabelHelpers.ClientSecret] = config.ClientSecret,
+          [LabelHelpers.RefreshTokenLabel] = _config.RefreshToken,
+          [LabelHelpers.ClientId] = _config.ClientId,
+          [LabelHelpers.ClientSecret] = _config.ClientSecret,
           // Assuming Scopes is defined somewhere in the context
-          ["scope"] = String.Join(",", config.Scope),
-
+          ["scope"] = String.Join(",", _config.Scope),
           [LabelHelpers.GrantTypeLabel] = LabelHelpers.RefreshTokenLabel,
         }
       );
-
-      return token;
-    }
-
-    protected async Task<string> GetAccessToken()
-    {
       var now = _clock.GetCurrentInstant().ToUnixTimeSeconds();
-      if(_currentToken == null || _tokenExpiration < now)
+      if(tokenInstance.CurrentToken == null || tokenInstance.ExpiresAt < now)
       {
-        var gen = AccessTokenGenerator();
-        var token = await gen.getAccessToken();
-        if (!string.IsNullOrEmpty(token?.AccessToken)){
-          _tokenExpiration = now + (token.ExpiresIn / 2);
-          _currentToken = token;
-        }
+        await tokenInstance.GetAccessToken((token) => now + token.ExpiresIn);
       }
-      return _currentToken?.AccessToken ?? string.Empty;
+      return tokenInstance.CurrentToken?.AccessToken ?? string.Empty;
     }
 
     protected override async Task<System.Net.Http.Headers.AuthenticationHeaderValue> GetAuthenticationHeaderValue()
