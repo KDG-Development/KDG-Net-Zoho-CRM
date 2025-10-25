@@ -129,7 +129,9 @@ namespace KDG.Zoho.CRM.Services
         }
 
         // Check if there are more records and get next page token
-        hasMore = response.info.more_records;
+        // There was an issue where more_records was true, but next_page_token was null, causing an endless loop.
+        // Make sure there's a next page token to fetch more records.
+        hasMore = response.info.more_records && !string.IsNullOrEmpty(response.info.next_page_token);
         pageToken = response.info.next_page_token;
       }
       return results;
