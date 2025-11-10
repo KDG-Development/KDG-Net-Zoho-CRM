@@ -547,6 +547,32 @@ namespace KDG.Zoho.CRM.Services
         };
         return Send<ApiResponse<T>>(HttpMethod.Get, $"{search.Module}/search", config);
     }
+    /// <summary>
+    /// Searches for records using criteria and optionally filters by modification date
+    /// </summary>
+    /// <typeparam name="T">Type to deserialize records to</typeparam>
+    /// <param name="search">Search parameters including module, criteria, and optional modified since date</param>
+    /// <param name="page">Page number (1-based)</param>
+    /// <param name="perPage">Number of records per page. Zoho CRM API limit is 200</param>
+    /// <returns>API response with matching records</returns>
+    public Task<ApiResponse<T>> Search<T>(SearchParams search, int page, int perPage)
+    {
+        var urlParams = new Dictionary<string, string?>() {
+            ["criteria"] = String.Join("and",search.Criterias.Select((v) => v.GetCriteriaValue())),
+        };
+        if (page > 0){
+          urlParams.Add("page", page.ToString());
+        }
+        if (perPage > 0){
+          urlParams.Add("per_page", perPage.ToString());
+        }
+        var config = new ApiParams()
+        {
+            urlParams = urlParams,
+            headers = CreateModifiedSinceHeaders(search.ModifiedSince)
+        };
+        return Send<ApiResponse<T>>(HttpMethod.Get, $"{search.Module}/search", config);
+    }
     public async Task<List<CreateResponse<DeletedRecord>>> DeleteRecords(string module, IEnumerable<string> ids){
       if (ids.Count() > 100){
         throw new InvalidOperationException("API can only delete up to 100 records in a single call.");
