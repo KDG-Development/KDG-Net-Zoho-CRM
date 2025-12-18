@@ -59,7 +59,8 @@ namespace KDG.Zoho.CRM.Services
           // Assuming Scopes is defined somewhere in the context
           ["scope"] = String.Join(",", _config.Scope),
           [LabelHelpers.GrantTypeLabel] = LabelHelpers.RefreshTokenLabel,
-        }
+        },
+        Logger
       );
       var now = _clock.GetCurrentInstant().ToUnixTimeSeconds();
       if(tokenInstance.CurrentToken == null || tokenInstance.ExpiresAt < now)
