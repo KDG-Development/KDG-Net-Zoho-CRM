@@ -1,12 +1,14 @@
+using Microsoft.Extensions.Logging;
+
 namespace KDG.Zoho.CRM.Services
 {
     public class AccessToken<A>
     {
-
+      private readonly ILogger<ConnectorBase> _logger;
       private static AccessToken<A>? _instance;
-      public static AccessToken<A> Instance(Uri url, Dictionary<string, string?> queryParams)
+      public static AccessToken<A> Instance(Uri url, Dictionary<string, string?> queryParams, ILogger<ConnectorBase> logger)
       {
-        return _instance ??= new AccessToken<A>(url, queryParams);
+        return _instance ??= new AccessToken<A>(url, queryParams, logger);
       }
 
       public A? CurrentToken { get; private set; }
@@ -16,7 +18,7 @@ namespace KDG.Zoho.CRM.Services
 
       private Uri Uri { get; }
       private Dictionary<string, string?> QueryParams { get; }
-      private AccessToken(Uri url, Dictionary<string, string?> queryParams) // Constructor
+      private AccessToken(Uri url, Dictionary<string, string?> queryParams, ILogger<ConnectorBase> logger) // Constructor
       {
         if (_instance != null)
         {
@@ -24,6 +26,7 @@ namespace KDG.Zoho.CRM.Services
         }
         Uri = url;
         QueryParams = queryParams;
+        _logger = logger;
       }
 
       private async Task<A> FetchNew()
@@ -33,19 +36,28 @@ namespace KDG.Zoho.CRM.Services
           throw new Exception("AccessToken is already being requested");
         }
         IsRequstingNewToken = true;
-        using var client = new HttpClient();
-        var uri = KDG.Zoho.CRM.Utilities.QueryHelpers.GenerateUri(Uri.ToString(), QueryParams);
-        var response = await client.PostAsync(uri, null);
-        var contents = await response.Content.ReadAsStringAsync();
-        Console.WriteLine(String.Format("content:{0}", contents));
-        var token = System.Text.Json.JsonSerializer.Deserialize<A>(contents);
-        IsRequstingNewToken = false;
-        if(token == null)
-        {
-          throw new Exception("Cannot fetch new Access Token");
+        try{
+          using var client = new HttpClient();
+          var uri = KDG.Zoho.CRM.Utilities.QueryHelpers.GenerateUri(Uri.ToString(), QueryParams);
+          var response = await client.PostAsync(uri, null);
+          var contents = await response.Content.ReadAsStringAsync();
+          _logger.LogInformation("Content: {contents}", contents);
+          var token = System.Text.Json.JsonSerializer.Deserialize<A>(contents);
+          if(token == null)
+          {
+            throw new Exception("Cannot fetch new Access Token");
+          }
+          IsRequstingNewToken = false;
+          return token;
         }
-        return token;
+        catch (Exception e) {
+          _logger.LogError(e, "Error fetching new Access Token");
+          throw;
+        } finally {
+          IsRequstingNewToken = false;
+        }
       }
+
       public async Task<A> GetAccessToken(Func<A, long> getExpiresAt)
       {
         // If the token is already being requested, wait for it to complete

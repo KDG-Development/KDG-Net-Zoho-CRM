@@ -5,18 +5,44 @@ VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "KDG.Connector.CRM", "KDG.Net.Zoho.CRM\KDG.Connector.CRM.csproj", "{072E43A5-5796-432E-86C8-7385EFE45781}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "KDG.Net.Zoho.CRM.Tests", "KDG.Net.Zoho.CRM.Tests\KDG.Net.Zoho.CRM.Tests.csproj", "{35122345-0D0E-4D0B-98A6-23FDEE4BAF3B}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
+		Debug|x64 = Debug|x64
+		Debug|x86 = Debug|x86
 		Release|Any CPU = Release|Any CPU
-	EndGlobalSection
-	GlobalSection(SolutionProperties) = preSolution
-		HideSolutionNode = FALSE
+		Release|x64 = Release|x64
+		Release|x86 = Release|x86
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
 		{072E43A5-5796-432E-86C8-7385EFE45781}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{072E43A5-5796-432E-86C8-7385EFE45781}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{072E43A5-5796-432E-86C8-7385EFE45781}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{072E43A5-5796-432E-86C8-7385EFE45781}.Debug|x64.Build.0 = Debug|Any CPU
+		{072E43A5-5796-432E-86C8-7385EFE45781}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{072E43A5-5796-432E-86C8-7385EFE45781}.Debug|x86.Build.0 = Debug|Any CPU
 		{072E43A5-5796-432E-86C8-7385EFE45781}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{072E43A5-5796-432E-86C8-7385EFE45781}.Release|Any CPU.Build.0 = Release|Any CPU
+		{072E43A5-5796-432E-86C8-7385EFE45781}.Release|x64.ActiveCfg = Release|Any CPU
+		{072E43A5-5796-432E-86C8-7385EFE45781}.Release|x64.Build.0 = Release|Any CPU
+		{072E43A5-5796-432E-86C8-7385EFE45781}.Release|x86.ActiveCfg = Release|Any CPU
+		{072E43A5-5796-432E-86C8-7385EFE45781}.Release|x86.Build.0 = Release|Any CPU
+		{35122345-0D0E-4D0B-98A6-23FDEE4BAF3B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{35122345-0D0E-4D0B-98A6-23FDEE4BAF3B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{35122345-0D0E-4D0B-98A6-23FDEE4BAF3B}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{35122345-0D0E-4D0B-98A6-23FDEE4BAF3B}.Debug|x64.Build.0 = Debug|Any CPU
+		{35122345-0D0E-4D0B-98A6-23FDEE4BAF3B}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{35122345-0D0E-4D0B-98A6-23FDEE4BAF3B}.Debug|x86.Build.0 = Debug|Any CPU
+		{35122345-0D0E-4D0B-98A6-23FDEE4BAF3B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{35122345-0D0E-4D0B-98A6-23FDEE4BAF3B}.Release|Any CPU.Build.0 = Release|Any CPU
+		{35122345-0D0E-4D0B-98A6-23FDEE4BAF3B}.Release|x64.ActiveCfg = Release|Any CPU
+		{35122345-0D0E-4D0B-98A6-23FDEE4BAF3B}.Release|x64.Build.0 = Release|Any CPU
+		{35122345-0D0E-4D0B-98A6-23FDEE4BAF3B}.Release|x86.ActiveCfg = Release|Any CPU
+		{35122345-0D0E-4D0B-98A6-23FDEE4BAF3B}.Release|x86.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
 	EndGlobalSection
 EndGlobal
