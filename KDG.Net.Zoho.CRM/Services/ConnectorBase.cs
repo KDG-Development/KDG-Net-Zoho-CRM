@@ -1,4 +1,5 @@
 using Newtonsoft.Json;
+using System;
 using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
@@ -34,6 +35,16 @@ namespace KDG.Zoho.CRM.Services
     protected readonly JsonSerializerSettings SerializerSettings;
     protected readonly string ConnectorFriendlyName;
     protected string CommentDivider = "=================================================";
+    private const int InitialBackoffSeconds = 2;
+    private const int MaxBackoffSeconds = 60;
+    private const double BackoffMultiplier = 2.0;
+    private static readonly HttpStatusCode[] ServerRetryStatusCodes =
+    {
+      HttpStatusCode.InternalServerError,
+      HttpStatusCode.BadGateway,
+      HttpStatusCode.ServiceUnavailable,
+      HttpStatusCode.GatewayTimeout
+    };
 
     //https://learn.microsoft.com/en-us/dotnet/api/system.net.http.httpclient.timeout?view=net-8.0
     public const int TimeOutInMinutes = 5; //Default value is 100 seconds (1 min 40 seconds)
@@ -92,16 +103,14 @@ namespace KDG.Zoho.CRM.Services
     protected async Task<int> SendWithRetryResponse<RESPONSE>(HttpClient client, bool logResponseData, Func<Task<HttpRequestMessage>> getRequest)
     {
       var sendAttempt = 0;
-      var retryCount = 1;
-      //var responseData = default(RESPONSE);
       RESPONSE? responseData;
       var successful = false;
       var contents = string.Empty;
       HttpRequestMessage? request = null;
       var requestUri = string.Empty;
-      var retrySeconds = 60;
       var requestDataDisplayed = false;
       HttpStatusCode statusCode = HttpStatusCode.OK;
+      HttpResponseMessage? response = null;
 
       do
       {
@@ -125,7 +134,7 @@ namespace KDG.Zoho.CRM.Services
 
           Logger.LogInformation("Sending {method} request to {url}", request.Method.Method, requestUri);
 
-          var response = await client.SendAsync(request);
+          response = await client.SendAsync(request);
           contents = await response.Content.ReadAsStringAsync();
           statusCode = response.StatusCode;
 
@@ -147,19 +156,48 @@ namespace KDG.Zoho.CRM.Services
           }
         }
 
-        retryCount = MaxRetryAttempts - sendAttempt;
+        if (response == null)
+        {
+          break;
+        }
 
-        var divider = string.Join("", Environment.NewLine, CommentDivider, Environment.NewLine);
+        if (!TryGetRetryDelay(sendAttempt, statusCode, response, out var retryDelay))
+        {
+          var divider = string.Join("", Environment.NewLine, CommentDivider, Environment.NewLine);
+          Logger.LogWarning("{divider}Send attempt failed to {requestUri} (HTTP status {statusCode} {statusNumber}). " +
+                            "Response is not configured for retries.{newLine}" +
+                            "Actual response received: {contents}{divider}",
+                            divider, requestUri, statusCode, (int)statusCode, Environment.NewLine, contents, divider);
 
-        Logger.LogWarning("{divider}Send attempt failed to {requestUri} (HTTP status {statusCode} {statusNumber}). " +
-                          "Will retry in {retrySeconds} seconds. " +
-                          "Number of retries remaining: {retryCount}{newLine}" +
-                          "Actual response received: {contents}{divider}",
-                          divider, requestUri, statusCode, (int)statusCode, retrySeconds, retryCount, Environment.NewLine, contents, divider);
+          var message = string.Join(Environment.NewLine,
+                                    $"Unable to complete request to '{requestUri}'. HTTP {statusCode} is not retryable.",
+                                    $"Response: {contents}");
 
-        Thread.Sleep(retrySeconds * 1000);
+          throw new Exception(message);
+        }
+
+        var retriesRemaining = MaxRetryAttempts - sendAttempt;
+        var dividerForRetry = string.Join("", Environment.NewLine, CommentDivider, Environment.NewLine);
+
+        if (retriesRemaining > 0)
+        {
+          Logger.LogWarning("{divider}Send attempt failed to {requestUri} (HTTP status {statusCode} {statusNumber}). " +
+                            "Will retry in {retrySeconds} seconds. " +
+                            "Number of retries remaining: {retryCount}{newLine}" +
+                            "Actual response received: {contents}{divider}",
+                            dividerForRetry, requestUri, statusCode, (int)statusCode, retryDelay.TotalSeconds, retriesRemaining, Environment.NewLine, contents, dividerForRetry);
+
+          await Task.Delay(retryDelay);
+        }
+        else
+        {
+          Logger.LogWarning("{divider}Send attempt failed to {requestUri} (HTTP status {statusCode} {statusNumber}). " +
+                            "No retries remaining. Actual response received: {contents}{divider}",
+                            dividerForRetry, requestUri, statusCode, (int)statusCode, contents, dividerForRetry);
+          break;
+        }
       }
-      while (retryCount > 0);
+      while (sendAttempt < MaxRetryAttempts);
 
       if (!successful)
       {
@@ -174,30 +212,27 @@ namespace KDG.Zoho.CRM.Services
       {
         return sendAttempt;
       }
-      else
-      {
-        throw new Exception("null response");
-      }
+
+      throw new Exception("null response");
     }
 
     private async Task<RESPONSE> SendWithRetries<RESPONSE>(HttpClient client, bool logResponseData, Func<Task<HttpRequestMessage>> getRequest)
     {
       var sendAttempt = 0;
-      var retryCount = 1;
-      //var responseData = default(RESPONSE);
       RESPONSE? responseData;
       var successful = false;
       var contents = string.Empty;
       HttpRequestMessage? request = null;
       var requestUri = string.Empty;
-      var retrySeconds = 10;
       var requestDataDisplayed = false;
       HttpStatusCode statusCode = HttpStatusCode.OK;
+      HttpResponseMessage? response = null;
 
       do
       {
         try
         {
+          sendAttempt++;
           request = await getRequest();
           requestUri = request.RequestUri == null ? "" : request.RequestUri.ToString();
 
@@ -215,10 +250,11 @@ namespace KDG.Zoho.CRM.Services
 
           Logger.LogInformation("Sending {method} request to {url}", request.Method.Method, requestUri);
 
-          var response = await client.SendAsync(request);
+          response = await client.SendAsync(request);
           contents = await response.Content.ReadAsStringAsync();
           statusCode = response.StatusCode;
-          if (response.StatusCode == HttpStatusCode.NotModified)
+
+          if (statusCode == HttpStatusCode.NotModified)
           {
             successful = true;
             return default(RESPONSE)!;
@@ -236,27 +272,54 @@ namespace KDG.Zoho.CRM.Services
         }
         finally
         {
-          if(request != null)
+          if (request != null)
           {
             request.Dispose();
           }
         }
 
-        sendAttempt++;
+        if (response == null)
+        {
+          break;
+        }
 
-        retryCount = MaxRetryAttempts - sendAttempt;
+        if (!TryGetRetryDelay(sendAttempt, statusCode, response, out var retryDelay))
+        {
+          var divider = string.Join("", Environment.NewLine, CommentDivider, Environment.NewLine);
+          Logger.LogWarning("{divider}Send attempt failed to {requestUri} (HTTP status {statusCode} {statusNumber}). " +
+                            "Response is not configured for retries.{newLine}" +
+                            "Actual response received: {contents}{divider}",
+                            divider, requestUri, statusCode, (int)statusCode, Environment.NewLine, contents, divider);
 
-        var divider = string.Join("", Environment.NewLine, CommentDivider, Environment.NewLine);
+          var message = string.Join(Environment.NewLine,
+                                    $"Unable to complete request to '{requestUri}'. HTTP {statusCode} is not retryable.",
+                                    $"Response: {contents}");
 
-        Logger.LogWarning("{divider}Send attempt failed to {requestUri} (HTTP status {statusCode} {statusNumber}). " +
-                          "Will retry in {retrySeconds} seconds. " +
-                          "Number of retries remaining: {retryCount}{newLine}" +
-                          "Actual response received: {contents}{divider}",
-                          divider, requestUri, statusCode, (int)statusCode, retrySeconds, retryCount, Environment.NewLine, contents, divider);
+          throw new Exception(message);
+        }
 
-        Thread.Sleep(retrySeconds * 1000);
+        var retriesRemaining = MaxRetryAttempts - sendAttempt;
+        var dividerForRetry = string.Join("", Environment.NewLine, CommentDivider, Environment.NewLine);
+
+        if (retriesRemaining > 0)
+        {
+          Logger.LogWarning("{divider}Send attempt failed to {requestUri} (HTTP status {statusCode} {statusNumber}). " +
+                            "Will retry in {retrySeconds} seconds. " +
+                            "Number of retries remaining: {retryCount}{newLine}" +
+                            "Actual response received: {contents}{divider}",
+                            dividerForRetry, requestUri, statusCode, (int)statusCode, retryDelay.TotalSeconds, retriesRemaining, Environment.NewLine, contents, dividerForRetry);
+
+          await Task.Delay(retryDelay);
+        }
+        else
+        {
+          Logger.LogWarning("{divider}Send attempt failed to {requestUri} (HTTP status {statusCode} {statusNumber}). " +
+                            "No retries remaining. Actual response received: {contents}{divider}",
+                            dividerForRetry, requestUri, statusCode, (int)statusCode, contents, dividerForRetry);
+          break;
+        }
       }
-      while (retryCount > 0);
+      while (sendAttempt < MaxRetryAttempts);
 
       if (!successful)
       {
@@ -267,14 +330,72 @@ namespace KDG.Zoho.CRM.Services
         throw new Exceptions.TooManyRetries(message);
       }
 
-      if(responseData != null)
+      if (responseData != null)
       {
         return responseData;
       }
-      else
+
+      throw new Exception("null response");
+    }
+
+    private static bool IsRetryableServerError(HttpStatusCode statusCode)
+    {
+      return Array.IndexOf(ServerRetryStatusCodes, statusCode) >= 0;
+    }
+
+    private static bool TryGetRetryDelay(int attempt, HttpStatusCode statusCode, HttpResponseMessage response, out TimeSpan delay)
+    {
+      delay = GetExponentialDelay(attempt);
+
+      if (statusCode == HttpStatusCode.TooManyRequests)
       {
-        throw new Exception("null response");
+        var retryAfterDelay = GetRetryAfterDelay(response);
+        if (retryAfterDelay > delay)
+        {
+          delay = retryAfterDelay;
+        }
+
+        return true;
       }
+
+      if (IsRetryableServerError(statusCode))
+      {
+        return true;
+      }
+
+      delay = TimeSpan.Zero;
+      return false;
+    }
+
+    private static TimeSpan GetRetryAfterDelay(HttpResponseMessage response)
+    {
+      var retryAfter = response.Headers.RetryAfter;
+
+      if (retryAfter == null)
+      {
+        return TimeSpan.Zero;
+      }
+
+      if (retryAfter.Delta.HasValue)
+      {
+        return retryAfter.Delta.Value > TimeSpan.Zero ? retryAfter.Delta.Value : TimeSpan.Zero;
+      }
+
+      if (retryAfter.Date.HasValue)
+      {
+        var delta = retryAfter.Date.Value - DateTimeOffset.UtcNow;
+        return delta > TimeSpan.Zero ? delta : TimeSpan.Zero;
+      }
+
+      return TimeSpan.Zero;
+    }
+
+    private static TimeSpan GetExponentialDelay(int attempt)
+    {
+      var normalizedAttempt = Math.Max(1, attempt);
+      var multiplier = Math.Pow(BackoffMultiplier, normalizedAttempt - 1);
+      var delaySeconds = Math.Min(InitialBackoffSeconds * multiplier, MaxBackoffSeconds);
+      return TimeSpan.FromSeconds(delaySeconds);
     }
 
     protected string GetUrl(string pathToAppend, string? baseUrlOverride, bool addSurroundingSlashes = false)
