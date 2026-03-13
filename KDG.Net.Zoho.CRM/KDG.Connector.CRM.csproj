@@ -2,7 +2,7 @@
 
   <PropertyGroup>
      <PackageId>KDG-Net-Zoho-CRM</PackageId>
-     <Version>0.1.8</Version>
+     <Version>0.1.9</Version>
      <Authors>Kyle David Group</Authors>
      <Company>Kyle David Group</Company>
      <Description>A .NET library for integrating with Zoho CRM API, providing easy access to CRM data with support for incremental synchronization using the X-Modified-Since header.</Description>

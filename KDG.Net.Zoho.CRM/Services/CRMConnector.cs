@@ -22,6 +22,12 @@ namespace KDG.Zoho.CRM.Services
     private IClock _clock;
     private string _tokenUri = "https://accounts.zoho.com/oauth/v2/token";
     private string _userModule = "users";
+    private const int TokenBufferSeconds = 60;
+
+    protected virtual long CalculateExpiresAt(int expiresInSeconds, long nowUnix)
+    {
+        return nowUnix + expiresInSeconds - TokenBufferSeconds;
+    }
 
     /// <summary>
     /// Formats a DateTime for use in If-Modified-Since header according to HTTP RFC 7232 requirements
@@ -51,7 +57,7 @@ namespace KDG.Zoho.CRM.Services
     {
       var tokenInstance = AccessToken<KDG.Zoho.CRM.Models.ZohoAccessToken>.Instance(
         new Uri(_tokenUri),
-        new Dictionary<string, string?>() 
+        new Dictionary<string, string?>()
         {
           [LabelHelpers.RefreshTokenLabel] = _config.RefreshToken,
           [LabelHelpers.ClientId] = _config.ClientId,
@@ -65,7 +71,7 @@ namespace KDG.Zoho.CRM.Services
       var now = _clock.GetCurrentInstant().ToUnixTimeSeconds();
       if(tokenInstance.CurrentToken == null || tokenInstance.ExpiresAt < now)
       {
-        await tokenInstance.GetAccessToken((token) => now + token.ExpiresIn);
+        await tokenInstance.GetAccessToken((token) => CalculateExpiresAt(token.ExpiresIn, now));
       }
       return tokenInstance.CurrentToken?.AccessToken ?? string.Empty;
     }
@@ -188,7 +194,7 @@ namespace KDG.Zoho.CRM.Services
         request.Headers.Authorization = await GetAuthenticationHeaderValue();
 
         var response = await client.SendAsync(request);
-        
+
         if (response.StatusCode == HttpStatusCode.NoContent)
         {
           return null;
@@ -211,7 +217,7 @@ namespace KDG.Zoho.CRM.Services
       }
     }
 
-    
+
 
     async Task<RelatedRecordCountResponse> GetRelatedRecordCount(string module, string id, string relatedListApiName)
     {
